@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1736182561485" clover="3.2.0">
-  <project timestamp="1736182561485" name="All files">
+<coverage generated="1736183844693" clover="3.2.0">
+  <project timestamp="1736183844693" name="All files">
     <metrics statements="51" coveredstatements="42" conditionals="17" coveredconditionals="12" methods="16" coveredmethods="14" elements="84" coveredelements="68" complexity="0" loc="51" ncloc="51" packages="1" files="2" classes="2"/>
     <file name="context.ts" path="/home/mohanpathis/studies/projects/workflows/project/src/context.ts">
       <metrics statements="13" coveredstatements="12" conditionals="2" coveredconditionals="1" methods="8" coveredmethods="8"/>
