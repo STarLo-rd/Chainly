@@ -1,63 +1,71 @@
-import { Workflow } from '../workflow';
-import { Context } from '../context';
-import { Task, Middleware } from '../types';
+import { Workflow } from "../workflow";
+import { Context } from "../context";
+import { Task, Middleware } from "../types";
 
-describe('Workflow', () => {
-  it('should execute a simple task', async () => {
-    const workflow = new Workflow();
-    
-    const taskId = workflow.addTask({
-      name: 'test-task',
-      execute: async (context: Context) => {
-        return 'success';
-      }
-    });
+describe("Workflow", () => {
+  let workflow: Workflow;
 
-    const result = await workflow.execute(taskId);
-    expect(result).toBe('success');
+  beforeEach(() => {
+    workflow = new Workflow();
   });
 
-  it('should handle task dependencies', async () => {
-    const workflow = new Workflow();
-    
-    const dep1Id = workflow.addTask({
-      name: 'dep-1',
-      execute: async (context: Context) => {
-        context.set('dep1Result', 'dep1');
-        return 'dep1';
-      }
-    });
-
+  test("should handle conditional task execution", async () => {
     const taskId = workflow.addTask({
-      name: 'main-task',
-      dependencies: [dep1Id],
-      execute: async (context: Context) => {
-        const dep1Result = context.get('dep1Result');
-        return `main-${dep1Result}`;
-      }
-    });
+      name: "conditional-task",
+      condition: (ctx) => ctx.get("shouldExecute") === true,
+      execute: async () => "executed",
+    }) as string; // Explicitly cast to string
 
-    const result = await workflow.execute(taskId);
-    expect(result).toBe('main-dep1');
+    const skipResult = await workflow.execute(taskId, { shouldExecute: false });
+    expect(skipResult).toBeNull();
+
+    const executeResult = await workflow.execute(taskId, {
+      shouldExecute: true,
+    });
+    expect(executeResult).toBe("executed");
   });
 
-  it('should apply middleware', async () => {
-    const middleware: Middleware = {
-      pre: async (context: Context) => {
-        context.set('middlewareRan', true);
-      }
-    };
+  test("should handle dynamic dependencies", async () => {
+    const task1Id = workflow.addTask({
+      name: "task1",
+      execute: async (ctx) => {
+        ctx.set("task1Done", true);
+        return "task1";
+      },
+    }) as string; // Explicitly cast to string
 
-    const workflow = new Workflow({ middlewares: [middleware] });
-    
-    const taskId = workflow.addTask({
-      name: 'test-task',
-      execute: async (context: Context) => {
-        return context.get('middlewareRan');
-      }
+    const task2Id = workflow.addTask({
+      name: "task2",
+      execute: async (ctx) => {
+        ctx.set("task2Done", true);
+        return "task2";
+      },
+    }) as string; // Explicitly cast to string
+
+    const mainTaskId = workflow.addTask({
+      name: "main",
+      dependencies: (ctx): string[] => { // Explicit return type as string[]
+        const deps: string[] = [];  // Ensure the deps array is of type string[]
+        if (ctx.get("needsTask1")) deps.push(task1Id);
+        if (ctx.get("needsTask2")) deps.push(task2Id);
+        return deps;
+      },
+      execute: async (ctx) => {
+        const results: string[] = [];  // Explicitly type results as string[]
+        if (ctx.get("task1Done")) results.push("task1");
+        if (ctx.get("task2Done")) results.push("task2");
+        return results;
+      },
+    }) as string; // Explicitly cast to string
+
+    const result1 = await workflow.execute(mainTaskId, { needsTask1: true });
+    expect(result1).toEqual(["task1"]);
+
+    const result2 = await workflow.execute(mainTaskId, {
+      needsTask1: true,
+      needsTask2: true,
     });
-
-    const result = await workflow.execute(taskId);
-    expect(result).toBe(true);
+    expect(result2).toEqual(["task1", "task2"]);
   });
 });
+

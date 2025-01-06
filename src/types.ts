@@ -6,7 +6,8 @@ export interface Task {
   id: string;
   name: string;
   execute: (context: Context) => Promise<TaskResult>;
-  dependencies?: string[];
+  dependencies?: string[] | ((context: Context) => string[]);
+  condition?: (context: Context) => boolean | Promise<boolean>;
 }
 
 export interface Middleware {

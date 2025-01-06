@@ -20,12 +20,31 @@ export class Workflow {
     return id;
   }
 
+  private async shouldExecuteTask(task: Task, context: Context): Promise<boolean> {
+    if (!task.condition) return true;
+    return task.condition(context);
+  }
+
+  private async getDependencies(task: Task, context: Context): Promise<string[]> {
+    if (!task.dependencies) return [];
+    if (typeof task.dependencies === 'function') {
+      return task.dependencies(context);
+    }
+    return task.dependencies;
+  }
+
   private async executeTask(
     task: Task,
     context: Context,
     attempt: number = 1
   ): Promise<TaskResult> {
     try {
+      const shouldExecute = await this.shouldExecuteTask(task, context);
+      if (!shouldExecute) {
+        context.set(`${task.id}_skipped`, true);
+        return null;
+      }
+
       // Execute pre-middleware
       for (const middleware of this.middlewares) {
         if (middleware.pre) {
@@ -35,6 +54,7 @@ export class Workflow {
 
       // Execute task
       const result = await task.execute(context);
+      context.set(`${task.id}_result`, result);
 
       // Execute post-middleware
       for (const middleware of this.middlewares) {
@@ -54,9 +74,10 @@ export class Workflow {
   }
 
   private async executeDependencies(task: Task, context: Context): Promise<void> {
-    if (!task.dependencies?.length) return;
+    const dependencies = await this.getDependencies(task, context);
+    if (!dependencies.length) return;
 
-    const dependencyPromises = task.dependencies.map(async (depId) => {
+    const dependencyPromises = dependencies.map(async (depId) => {
       const depTask = this.tasks.get(depId);
       if (!depTask) {
         throw new Error(`Dependency task ${depId} not found`);
