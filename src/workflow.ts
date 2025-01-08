@@ -1,12 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Context } from './context';
-import { Task, Middleware, WorkflowOptions, TaskResult } from './types';
+import { Task, Middleware, WorkflowOptions, TaskResult, EventEmitter, EventPayload, EventHandler } from './types';
 
-export class Workflow {
+export class Workflow implements EventEmitter {
   private tasks: Map<string, Task> = new Map();
   private middlewares: Middleware[] = [];
   private maxRetries: number;
   private retryDelay: number;
+  private eventHandlers: Map<string, Set<EventHandler>> = new Map();
 
   constructor(options: WorkflowOptions = {}) {
     this.middlewares = options.middlewares || [];
@@ -17,7 +18,39 @@ export class Workflow {
   addTask(task: Omit<Task, 'id'>): string {
     const id = uuidv4();
     this.tasks.set(id, { ...task, id });
+
+    // Register event handlers for task triggers
+    if (task.triggers) {
+      task.triggers.forEach(eventName => {
+        this.on(eventName, async (payload) => {
+          await this.execute(id, { eventPayload: payload });
+        });
+      });
+    }
+
     return id;
+  }
+
+  // Event emitter implementation
+  emit(eventName: string, payload: EventPayload): void {
+    const handlers = this.eventHandlers.get(eventName);
+    if (handlers) {
+      handlers.forEach(handler => handler(payload));
+    }
+  }
+
+  on(eventName: string, handler: EventHandler): void {
+    if (!this.eventHandlers.has(eventName)) {
+      this.eventHandlers.set(eventName, new Set());
+    }
+    this.eventHandlers.get(eventName)!.add(handler);
+  }
+
+  off(eventName: string, handler: EventHandler): void {
+    const handlers = this.eventHandlers.get(eventName);
+    if (handlers) {
+      handlers.delete(handler);
+    }
   }
 
   private async shouldExecuteTask(task: Task, context: Context): Promise<boolean> {
